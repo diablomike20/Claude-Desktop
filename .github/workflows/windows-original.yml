@@ -1,0 +1,60 @@
+name: Build unchanged Claude Desktop for Windows
+
+on:
+  push:
+    branches: [codex/build-windows-original-20261016]
+    paths:
+      - 'build-only/**'
+      - '.github/workflows/windows-original.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out isolated build support
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: builder
+      - name: Configure byte-exact original checkout
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - name: Check out unchanged original application
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 85cb591eae2d4330198957ada16545621973581b
+          path: original
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile, package and verify Windows application
+        shell: pwsh
+        run: ./builder/build-only/build.ps1 -SourceRoot ./original
+      - name: Upload installer and portable application
+        uses: actions/upload-artifact@v4
+        with:
+          name: Claude-Desktop-Windows-x64
+          path: |
+            builder/dist/Claude-Desktop-Windows-x64/
+            builder/dist/qa/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Claude-Desktop-build-diagnostics
+          path: |
+            builder/dist/**/*.json
+            builder/dist/**/*.txt
+            original/dist-client/builder-*.yml
+          if-no-files-found: ignore
